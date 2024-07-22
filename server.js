@@ -1,4 +1,5 @@
 require("dotenv").config();
+const cors = require("cors");
 const express = require("express");
 const { createUser, getAllUsers } = require("./controllers/users");
 const {
@@ -11,6 +12,7 @@ const {
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 app.get("/", (req, res) => {
   res.json({ msg: "Hello from the Notes App - This is the demo" });
