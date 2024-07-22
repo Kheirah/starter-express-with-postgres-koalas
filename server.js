@@ -41,15 +41,32 @@ app.get("/notes", async (req, res) => {
   res.json(rows);
 });
 
-/* TODO 🕜
-  - change route to something like "/:user/notes/:id"
-  - check if user exists
-  - return the individual note by that user
+/* DONE ✅
+  - [x] change route to something like "/:user/notes/:id"
+  - [x] check if user exists
+  - [x] return the individual note by that user
 */
-app.get("/notes/:id", async (req, res) => {
-  const { id } = req.params;
-  const { rows } = await sql`SELECT * FROM notes WHERE notes.id = ${id}`;
-  res.json(rows);
+app.get("/:user/notes/:id", async (req, res) => {
+  const { user, id } = req.params;
+
+  const { rows: rowsUser } =
+    await sql`SELECT * FROM users WHERE UPPER(name) = UPPER(${user})`;
+
+  /* if the user DOES NOT EXIST respond with a message and return from the function */
+  if (!rowsUser.length) {
+    return res.json({ message: `Could NOT find the user ${user}.` });
+  }
+
+  const { rows } = await sql`SELECT * FROM notes
+                              INNER JOIN users ON notes."userId" = users.id
+                              WHERE notes.id = ${id}
+                              AND users.id = ${rowsUser[0].id}`;
+
+  if (!rows.length) {
+    return res.json({ message: `Could NOT find the note with id ${id}.` });
+  }
+
+  res.json(rows[0]);
 });
 
 /* DONE ✅
