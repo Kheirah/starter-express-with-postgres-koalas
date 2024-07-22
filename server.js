@@ -31,14 +31,29 @@ app.get("/users", async (req, res) => {
   res.json(rows);
 });
 
-/* TODO 🕜
-  - change route to something like "/:user/notes"
-  - check if user exists
-  - return all notes by that user
+/* DONE ✅
+  - [x] change route to something like "/:user/notes"
+  - [x] check if user exists
+  - [x] return all notes by that user
 */
-app.get("/notes", async (req, res) => {
-  const { rows } = await sql`SELECT * FROM notes`;
-  res.json(rows);
+app.get("/:user/notes", async (req, res) => {
+  const { user } = req.params;
+
+  try {
+    const { rows, rowCount } = await sql`
+        SELECT notes.id, notes.content, notes."createdAt", notes."userId" FROM notes
+        JOIN users ON notes."userId" = users.id
+        WHERE UPPER(users.name) = UPPER(${user})
+      `;
+
+    if (rowCount > 0) {
+      res.send(rows);
+    } else {
+      res.send({ message: "Notes could NOT be found." });
+    }
+  } catch (error) {
+    res.send({ message: `Something went wrong. ${error}` });
+  }
 });
 
 /* DONE ✅
@@ -49,24 +64,28 @@ app.get("/notes", async (req, res) => {
 app.get("/:user/notes/:id", async (req, res) => {
   const { user, id } = req.params;
 
-  const { rows: rowsUser } =
-    await sql`SELECT * FROM users WHERE UPPER(name) = UPPER(${user})`;
+  try {
+    const { rows: rowsUser } =
+      await sql`SELECT * FROM users WHERE UPPER(name) = UPPER(${user})`;
 
-  /* if the user DOES NOT EXIST respond with a message and return from the function */
-  if (!rowsUser.length) {
-    return res.json({ message: `Could NOT find the user ${user}.` });
+    /* if the user DOES NOT EXIST respond with a message and return from the function */
+    if (!rowsUser.length) {
+      return res.json({ message: `Could NOT find the user ${user}.` });
+    }
+
+    const { rows } = await sql`SELECT * FROM notes
+                                INNER JOIN users ON notes."userId" = users.id
+                                WHERE notes.id = ${id}
+                                AND users.id = ${rowsUser[0].id}`;
+
+    if (!rows.length) {
+      return res.json({ message: `Could NOT find the note with id ${id}.` });
+    }
+
+    res.json(rows[0]);
+  } catch (error) {
+    return res.json({ message: "An error occurred." });
   }
-
-  const { rows } = await sql`SELECT * FROM notes
-                              INNER JOIN users ON notes."userId" = users.id
-                              WHERE notes.id = ${id}
-                              AND users.id = ${rowsUser[0].id}`;
-
-  if (!rows.length) {
-    return res.json({ message: `Could NOT find the note with id ${id}.` });
-  }
-
-  res.json(rows[0]);
 });
 
 /* DONE ✅
@@ -106,34 +125,64 @@ app.post("/:user/notes", async (req, res) => {
   }
 });
 
-/* TODO 🕜
-  - change route to something like "/:user/notes/:id"
-  - check if user exists
-  - delete the individual note by that user
-  - return a success/failure message
+/* DONE ✅
+  - [x] change route to something like "/:user/notes/:id"
+  - [x] check if user exists
+  - [x] delete the individual note by that user
+  - [x] return a success/failure message
 */
-app.delete("/notes/:id", async (req, res) => {
-  const { id } = req.params;
+app.delete("/:user/notes/:id", async (req, res) => {
+  const { user, id } = req.params;
 
-  const { rowCount } = await sql`DELETE FROM notes where id = ${id}`;
+  try {
+    const { rowCount } = await sql`
+        DELETE FROM notes
+        WHERE id = ${id} AND "userId" = (
+          SELECT id FROM users WHERE UPPER(name) = UPPER(${user})
+        )
+      `;
 
-  res.json({ msg: `Element with id=${id} successfully deleted` });
+    if (rowCount > 0) {
+      res.json({ message: `Note with ID ${id} successfully deleted.` });
+    } else {
+      res.json({ message: `Note with ID ${id} not found.` });
+    }
+  } catch (error) {
+    res.json({ message: `Something went wrong. ${error}` });
+  }
 });
 
-/* TODO 🕜
-  - change route to something like "/:user/notes/:id"
-  - check if user exists
-  - update the individual note by that user
-  - return a success/failure message
+/* DONE ✅
+  - [x] change route to something like "/:user/notes/:id"
+  - [x] check if user exists
+  - [x] update the individual note by that user
+  - [x] return a success/failure message
 */
-app.patch("/notes/:id", async (req, res) => {
-  const { id } = req.params;
+app.patch("/:user/notes/:id", async (req, res) => {
+  const { user, id } = req.params;
   const { content, category } = req.body;
 
-  const { rowCount } =
-    await sql`UPDATE notes SET content = ${content},category = ${category} WHERE id = ${id}`;
+  try {
+    const { rowCount } = await sql`
+        UPDATE notes
+        SET content = ${content}, category = ${category}
+        WHERE id = ${id} AND "userId" = (
+          SELECT id FROM users WHERE UPPER(users.name) = UPPER(${user})
+        )
+      `;
 
-  res.json({ msg: `Element with id=${id} successfully updated` });
+    if (rowCount > 0) {
+      res.send({
+        message: `Note with ID ${id} updated successfully for user ${user}.`,
+      });
+    } else {
+      res.send({
+        message: `Note with ID ${id} not found or does not belong to user ${user}.`,
+      });
+    }
+  } catch (error) {
+    res.send({ message: `Something went wrong. ${error}` });
+  }
 });
 
 app.listen(3000, () => {
